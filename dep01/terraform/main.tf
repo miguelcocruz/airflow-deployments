@@ -115,9 +115,9 @@ resource "aws_instance" "this" {
 
     sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-    git clone https://github.com/miguelcocruz/learn-terraform-airflow.git
+    git clone https://github.com/miguelcocruz/airflow-deployments.git
 
-    cd learn-terraform-airflow
+    cd learn-terraform-airflow/dep01
 
     sudo docker compose up -d
 
