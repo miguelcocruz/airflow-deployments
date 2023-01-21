@@ -55,8 +55,8 @@ resource "aws_key_pair" "this" {
   public_key = tls_private_key.this.public_key_openssh
 }
 
-# Security Group
-resource "aws_security_group" "this" {
+# Security Group - EC2 Airflow
+resource "aws_security_group" "airflow" {
   ingress {
     from_port   = 22
     to_port     = 22
@@ -77,6 +77,7 @@ resource "aws_security_group" "this" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
 }
 
 # EC2 Airflow
@@ -86,7 +87,7 @@ resource "aws_instance" "airflow" {
 
   key_name = aws_key_pair.this.key_name
 
-  security_groups      = [aws_security_group.this.name]
+  security_groups      = [aws_security_group.airflow.name]
   iam_instance_profile = aws_iam_instance_profile.this.name
 
   user_data_replace_on_change = true
@@ -117,12 +118,44 @@ resource "aws_instance" "airflow" {
 
     cd airflow-deployments/dep02/containers/airflow
 
-    sudo docker compose up -d
+    echo "METASTORE_CONN=postgresql://airflow:airflow@${aws_instance.metastore.public_dns}:5432/airflow" > .env
+
+    sudo docker compose --env-file .env up -d
 
   EOT
 }
 
 
+
+
+
+
+
+# Security Group - EC2 metastore
+resource "aws_security_group" "metastore" {
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.whitelisted_ip_address]
+  }
+
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    security_groups = [aws_security_group.airflow.id]
+    
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+}
 
 # EC2 metastore
 resource "aws_instance" "metastore" {
@@ -133,7 +166,7 @@ resource "aws_instance" "metastore" {
   # but each ec2 endpoint is different
   key_name = aws_key_pair.this.key_name
 
-  security_groups      = [aws_security_group.this.name]
+  security_groups      = [aws_security_group.metastore.name]
   iam_instance_profile = aws_iam_instance_profile.this.name
 
   user_data_replace_on_change = true
