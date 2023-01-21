@@ -8,7 +8,7 @@ import boto3
 
 dag = DAG(
     dag_id="import_data_to_s3",
-    schedule_interval="@daily",
+    schedule_interval=None,
     start_date=datetime(2023, 1, 15)
 )
 
@@ -18,7 +18,7 @@ def _create_file():
 
 
 def _import_file_to_s3(filepath: str, bucket_name, object_name):
-    s3 = boto3.client()
+    s3 = boto3.client('s3')
     with open(filepath, "rb") as file:
         s3.upload_fileobj(file, bucket_name, object_name)
 
