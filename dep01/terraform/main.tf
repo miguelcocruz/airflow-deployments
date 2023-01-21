@@ -117,7 +117,7 @@ resource "aws_instance" "this" {
 
     git clone https://github.com/miguelcocruz/airflow-deployments.git
 
-    cd learn-terraform-airflow/dep01
+    cd airflow-deployments/dep01
 
     sudo docker compose up -d
 
@@ -126,5 +126,6 @@ resource "aws_instance" "this" {
 
 # S3 bucket
 resource "aws_s3_bucket" "this" {
+  bucket = "mglvlm-20230121"
   force_destroy = true
 }
