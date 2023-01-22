@@ -13,7 +13,7 @@ resource "aws_internet_gateway" "this" {
 
 # Public Subnet
 resource "aws_subnet" "public" {
-  vpc_id = aws_vpc.this.id
+  vpc_id     = aws_vpc.this.id
   cidr_block = "172.32.0.0/20"
 }
 
@@ -32,7 +32,7 @@ resource "aws_route_table" "public" {
 
 resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
-  subnet_id = aws_subnet.public.id
+  subnet_id      = aws_subnet.public.id
 }
 
 
@@ -43,7 +43,7 @@ resource "aws_route_table_association" "public" {
 # Public EC2 instance
 resource "tls_private_key" "this" {
   algorithm = "RSA"
-  rsa_bits = 4096
+  rsa_bits  = 4096
 }
 
 resource "aws_key_pair" "this" {
@@ -54,29 +54,29 @@ resource "aws_security_group" "public" {
   vpc_id = aws_vpc.this.id
 
   ingress {
-    from_port = 8080
-    to_port = 8080
-    protocol = "tcp"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
-    from_port = 22
-    to_port = 22
-    protocol = "tcp"
-    cidr_blocks = ["148.63.177.72/32"]
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.whitelisted_ip_address]
   }
 
   egress {
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
-    cidr_blocks = [ "0.0.0.0/0" ]
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
 resource "aws_instance" "public" {
-  ami = "ami-0fb653ca2d3203ac1"
+  ami           = "ami-0fb653ca2d3203ac1"
   instance_type = "t2.micro"
 
   subnet_id = aws_subnet.public.id
@@ -88,7 +88,7 @@ resource "aws_instance" "public" {
   vpc_security_group_ids = [aws_security_group.public.id]
 
   user_data_replace_on_change = true
-  user_data = <<-EOT
+  user_data                   = <<-EOT
     #!/bin/bash
     echo "Hello, World" > index.html
     nohup busybox httpd -f -p 8080 &
@@ -102,7 +102,7 @@ resource "aws_instance" "public" {
 
 # Private Subnet
 resource "aws_subnet" "private" {
-  vpc_id = aws_vpc.this.id
+  vpc_id     = aws_vpc.this.id
   cidr_block = "172.32.80.0/20"
 }
 
@@ -112,29 +112,73 @@ resource "aws_security_group" "private" {
   vpc_id = aws_vpc.this.id
 
   ingress {
-    from_port = 8080
-    to_port = 8080
-    protocol = "tcp"
-    cidr_blocks = [ "0.0.0.0/0" ]
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.public.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
 
 }
 
+resource "aws_eip" "this" {
+
+}
+
+resource "aws_nat_gateway" "this" {
+  connectivity_type = "public"
+  subnet_id         = aws_subnet.public.id
+  allocation_id     = aws_eip.this.id
+
+  depends_on = [aws_internet_gateway.this]
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_nat_gateway.this.id
+  }
+}
+
+resource "aws_route_table_association" "private" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
+}
+
 resource "aws_instance" "private" {
-  ami = "ami-0fb653ca2d3203ac1"
+  ami           = "ami-0fb653ca2d3203ac1"
   instance_type = "t2.micro"
 
   subnet_id = aws_subnet.private.id
 
   associate_public_ip_address = true
 
+  key_name = aws_key_pair.this.key_name
+
   vpc_security_group_ids = [aws_security_group.private.id]
 
   user_data_replace_on_change = true
-  user_data = <<-EOT
+  user_data                   = <<-EOT
     #!/bin/bash
     echo "Hello, World. You're on the private." > index.html
     nohup busybox httpd -f -p 8080 &
+    
+    git clone https://github.com/miguelcocruz/airflow-deployments.git
   EOT
 }

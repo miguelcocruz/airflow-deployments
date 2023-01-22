@@ -1,6 +1,6 @@
 resource "local_file" "this" {
-  content = tls_private_key.this.private_key_pem
-  filename = "ec2-ssh-private-key.pem"
+  content         = tls_private_key.this.private_key_pem
+  filename        = "ec2-ssh-private-key.pem"
   file_permission = "0400"
 }
 
