@@ -118,7 +118,7 @@ resource "aws_instance" "airflow" {
 
     cd airflow-deployments/dep02/containers/airflow
 
-    echo "METASTORE_CONN=postgresql://airflow:airflow@${aws_instance.metastore.public_dns}:5432/airflow" > .env
+    echo "METASTORE_CONN=postgresql://airflow:airflow@${aws_instance.metastore.private_dns}:5432/airflow" > .env
 
     sudo docker compose --env-file .env up -d
 

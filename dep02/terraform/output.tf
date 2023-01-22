@@ -11,3 +11,7 @@ output "ec2_airflow_public_dns_name" {
 output "ec2_metastore_public_dns_name" {
   value = aws_instance.metastore.public_dns
 }
+
+output "ec2_metastore_private_dns_name" {
+  value = aws_instance.metastore.private_dns
+}
