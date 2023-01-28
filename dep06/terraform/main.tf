@@ -1,34 +1,35 @@
+# 1. create cluster (name)
+# 2. register a task definition (family, network_mode, cpu, memory, ["fargate"], container definitions (image, name, port mappings, command, entrypoint, essential))
+# 3. create a service (cluster, task definition, desired count, network configuration(subnets, security groups, has public ip), ["fargate"])
+
 provider "aws" {
   region = "us-east-2"
 }
 
-# 1. Create cluster
 resource "aws_ecs_cluster" "this" {
   name = "fargate-cluster"
 }
 
-# 2. Register a task definition
 resource "aws_ecs_task_definition" "this" {
-  family       = "sample-fargate"
-  network_mode = "awsvpc"
+  family                   = "sample-fargate"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = 256
+  memory                   = 512
   container_definitions = jsonencode([{
     name  = "fargate-app"
     image = "public.ecr.aws/docker/library/httpd:latest"
     portMappings = [{
-      containerPort = 80
       hostPort      = 80
+      containerPort = 80
       protocol      = "tcp"
     }]
     essential  = true
     entrypoint = ["sh", "-c"]
-    command    = ["/bin/sh -c \"echo '<html> <head> <title>Amazon ECS Sample App</title> <style>body {margin-top: 40px; background-color: #333;} </style> </head><body> <div style=color:white;text-align:center> <h1>Amazon ECS Sample App</h1> <h2>Congratulations!</h2> <p>Your application is now running on a container in Amazon ECS.</p> </div></body></html>' >  /usr/local/apache2/htdocs/index.html && httpd-foreground\""]
+    command    = ["/bin/sh -c \"echo 'How you doin' > /usr/local/apache2/htdocs/index.html && httpd-foreground\""]
   }])
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = 256
-  memory                   = 512
 }
 
-# 3. Create a service
 resource "aws_ecs_service" "this" {
   name            = "fargate-service"
   cluster         = aws_ecs_cluster.this.id
@@ -42,6 +43,16 @@ resource "aws_ecs_service" "this" {
   }
 }
 
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
 
 resource "aws_security_group" "this" {
   ingress {
@@ -52,20 +63,9 @@ resource "aws_security_group" "this" {
   }
 
   egress {
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
   }
 }
