@@ -106,6 +106,8 @@ resource "aws_ecs_task_definition" "this" {
   cpu                      = 256
   memory                   = 512
   requires_compatibilities = ["FARGATE"]
+
+  depends_on = [aws_subnet.private]
 }
 
 resource "aws_security_group" "private" {
