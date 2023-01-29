@@ -68,8 +68,8 @@ resource "aws_route_table" "private" {
 }
 # private subnet
 resource "aws_subnet" "private" {
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = "172.32.160.0/20"
+  vpc_id     = aws_vpc.this.id
+  cidr_block = "172.32.160.0/20"
 }
 
 # route table association (private subnet -> route table for private subnet)
@@ -91,8 +91,8 @@ resource "aws_lb" "this" {
 # listener (port, protocol, default_action)
 resource "aws_lb_listener" "this" {
   load_balancer_arn = aws_lb.this.arn
-  port     = 80 #TODO
-  protocol = "HTTP"
+  port              = 80 #TODO
+  protocol          = "HTTP"
   default_action {
     type = "fixed-response"
     fixed_response {
@@ -151,11 +151,12 @@ resource "aws_ecs_cluster" "this" {
 # ecs task definition (family, requires_compatibility, network_mode, cpu, memory, container_definitions(name, image, port mappings, essential, command, entrypoint))
 # 2 container definitions
 resource "aws_ecs_task_definition" "this" {
-  family                 = "fargate-sample"
-  network_mode           = "awsvpc"
+  family                   = "fargate-sample"
+  network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                    = 256
-  memory                 = 512
+  cpu                      = 256
+  memory                   = 512
+  task_role_arn          = aws_iam_role.task.arn
   container_definitions = jsonencode([
     {
       name  = "app1"
@@ -173,11 +174,12 @@ resource "aws_ecs_task_definition" "this" {
 }
 # ecs service (name, launch_type, network_configuration(subnets, security groups), load_balancer(target_group, port name, container name))
 resource "aws_ecs_service" "this" {
-  name        = "fargate-service"
-  cluster = aws_ecs_cluster.this.id
-  launch_type = "FARGATE"
-  desired_count = 1
-  task_definition = aws_ecs_task_definition.this.id
+  name                   = "fargate-service"
+  cluster                = aws_ecs_cluster.this.id
+  launch_type            = "FARGATE"
+  desired_count          = 1
+  task_definition        = aws_ecs_task_definition.this.id
+  enable_execute_command = true
   network_configuration {
     subnets         = [aws_subnet.private.id]
     security_groups = [aws_security_group.ecs_service.id]
@@ -193,15 +195,55 @@ resource "aws_ecs_service" "this" {
 resource "aws_security_group" "ecs_service" {
   vpc_id = aws_vpc.this.id
   ingress {
-    from_port      = 0
-    to_port        = 0
-    protocol       = "-1"
+    from_port       = 0
+    to_port         = 0
+    protocol        = "-1"
     security_groups = [aws_security_group.lb.id]
   }
   egress {
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+
+resource "aws_iam_policy" "task" {
+  name = "ecs_exec_policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = ["ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+
+resource "aws_iam_role" "task" {
+  assume_role_policy = <<EOF
+{
+ "Version": "2012-10-17",
+ "Statement": [
+   {
+     "Action": "sts:AssumeRole",
+     "Principal": {
+       "Service": "ecs-tasks.amazonaws.com"
+     },
+     "Effect": "Allow",
+     "Sid": ""
+   }
+ ]
+}
+EOF
+  managed_policy_arns = [aws_iam_policy.task.arn]
 }
