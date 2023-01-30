@@ -70,6 +70,7 @@ resource "aws_route_table" "private" {
 resource "aws_subnet" "private" {
   vpc_id     = aws_vpc.this.id
   cidr_block = "172.32.160.0/20"
+  availability_zone = "us-east-2a"
 }
 
 # route table association (private subnet -> route table for private subnet)
@@ -209,41 +210,38 @@ resource "aws_security_group" "ecs_service" {
 }
 
 
+
+data "aws_iam_policy_document" "exec" {
+  statement {
+    actions = [
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel"
+    ]
+    effect = "Allow"
+    resources = ["*"]
+  }
+}
+
 resource "aws_iam_policy" "task" {
   name = "ecs_exec_policy"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = ["ssmmessages:CreateControlChannel",
-          "ssmmessages:CreateDataChannel",
-          "ssmmessages:OpenControlChannel",
-          "ssmmessages:OpenDataChannel"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      },
-    ]
-  })
+  policy = data.aws_iam_policy_document.exec.json
 }
 
+
+data "aws_iam_policy_document" "assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect = "Allow"
+    principals {
+      type = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+}
 
 resource "aws_iam_role" "task" {
-  assume_role_policy = <<EOF
-{
- "Version": "2012-10-17",
- "Statement": [
-   {
-     "Action": "sts:AssumeRole",
-     "Principal": {
-       "Service": "ecs-tasks.amazonaws.com"
-     },
-     "Effect": "Allow",
-     "Sid": ""
-   }
- ]
-}
-EOF
+  assume_role_policy = data.aws_iam_policy_document.assume.json
   managed_policy_arns = [aws_iam_policy.task.arn]
 }
