@@ -117,7 +117,7 @@ resource "aws_instance" "airflow" {
     cd airflow-deployments/dep02/containers/airflow
 
     echo "METASTORE_CONN=postgres://${var.db_user}:${var.db_pwd}@${aws_db_instance.this.endpoint}/metastore" > .env
-
+    
     sudo docker compose --env-file .env up
 
   EOT
