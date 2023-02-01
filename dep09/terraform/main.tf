@@ -116,68 +116,45 @@ resource "aws_instance" "airflow" {
 
     cd airflow-deployments/dep02/containers/airflow
 
-    echo "METASTORE_CONN=postgres://airflow:airflow@${aws_instance.metastore.public_dns}:5432/airflow" > .env
+    echo "METASTORE_CONN=postgres://${var.db_user}:${var.db_pwd}@${aws_db_instance.this.endpoint}/metastore" > .env
 
     sudo docker compose --env-file .env up
 
   EOT
 
-  depends_on = [aws_instance.metastore]
+  depends_on = [aws_db_instance.this]
 }
 
-resource "aws_instance" "metastore" {
-  ami = "ami-0ab0629dba5ae551d"
-  instance_type = "t2.large"
-
-  vpc_security_group_ids = [aws_security_group.metastore.id]
-
-  user_data_replace_on_change = true
-  user_data = <<-EOT
-    #!/bin/bash
-    sudo apt-get update
-    sudo apt-get -y install \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release
-
-    sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-    echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    sudo apt-get update
-
-    sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-
-    git clone https://github.com/miguelcocruz/airflow-deployments.git
-
-    cd airflow-deployments/dep02/containers/metastore
-
-    sudo docker compose up
-
-  EOT
-
+resource "aws_s3_bucket" "this" {
+  bucket = "mglvlm-20230121"
+  force_destroy = true
 }
 
-resource "aws_security_group" "metastore" {
+resource "aws_db_instance" "this" {
+  allocated_storage      = 10
+  db_name                = "metastore"
+  engine                 = "postgres"
+  engine_version         = "13.6"
+  instance_class         = "db.t3.medium"
+  username               = var.db_user
+  password               = var.db_pwd
+  skip_final_snapshot    = true
+  publicly_accessible    = true
+  vpc_security_group_ids = [aws_security_group.db.id]
+}
+
+resource "aws_security_group" "db" {
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.whitelisted_ip_address]
+  }
+
   ingress {
     from_port = 0
     to_port = 0
     protocol = "-1"
     security_groups = [aws_security_group.airflow.id]
   }
-  egress {
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_s3_bucket" "this" {
-  bucket = "mglvlm-20230121"
-  force_destroy = true
 }
